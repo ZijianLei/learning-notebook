@@ -1,0 +1,28 @@
+在python中，由于GIL的限制，程序只能在一个核上运行，为了让现在的多核CPU得到充分的利用，所以需要引入multiprecessing中的POOL来开启多个进程在
+不同的cpu上运行，但是在传统的函数中，pool只可以传递一个参数进行迭代，但是有的函数中需要有多个参数的输入，为了达到这样的效果，我们使用了functool
+中的particial函数来实现，我们以define的 libsvm为例，需要传入多个参数
+
+def libsvm(data,d_sub,name,what,array,R):
+如果我们直接使用
+apply_async(libsvm(train[n * int(len(train) / 10):(n + 1) * int(len(train) / 10), :], sub, name, 'train1', array, R, q1))
+则实际上是把调用libsvm的结果再放进pool中，实际上并不能达到多进程的效果，而如果使用
+apply_async(libsvm，args=(train[n * int(len(train) / 10):(n + 1) * int(len(train) / 10), :], sub, name, 'train1', array, R, q1))
+则并不能成功调用该进程所以正确的解决方法如下：
+
+给出particial函数的实例
+def spam(a,b,c,d):
+  print(a,b,c,d)
+
+from functools import particial
+s1 = particial(spam,1,2,d=42)  #a = 1, b = 2, d = 42
+s1(3)
+result: 1, 2, 3, 42
+
+再我们的程序中按照particial的方法改进后程序片段为
+
+f1 = partial(libsvm, d_sub = sub, name =name, what = 'train1', array =array, R =R)
+f2 = partial(libsvm, d_sub = sub, name =name, what = 'test', array =array, R =R)
+for n in range(20):
+  pool.apply_async(f1,(train[n * int(len(train) / 10):(n + 1) * int(len(train) / 10), :], ))
+  pool.apply_async(f2, (test[n * int(len(train) / 10):(n + 1) * int(len(test) / 10), :],))
+最后实验成功
